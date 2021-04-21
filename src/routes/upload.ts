@@ -11,35 +11,44 @@ uploadRouter.post('/', async (req, res) => {
     }
 
     const nomesArquivos = Object.keys(req.files)
-    const diretorio = path.join(__dirname, '..', '..', 'arquivos_temporarios')
+    const diretorio = path.join(__dirname, '..', '..', 'arquivos')
     if (!fs.existsSync(diretorio)) {
         fs.mkdirSync(diretorio)
     }
 
-    const bd = req.app.locals.db
-
+    const bd = req.app.locals.bd
     const arquivoCtrl = new ArquivoController(bd)
-
     const idsArquivosSalvos = []
+    let quantidadeErroGravacao = 0
+    let quantidadeErroObjArquivoInvalido = 0
+    let quantidadeErroInesperado = 0
 
     const promises = nomesArquivos.map(async (arquivo) => {
         const objArquivo = req.files[arquivo]
         try {
-            const id = await arquivoCtrl.realizarUpload(objArquivo)
-            idsArquivosSalvos.push(id)
+            const idArquivo = await arquivoCtrl.realizarUpload(objArquivo)
+            idsArquivosSalvos.push(idArquivo)
         } catch (erro) {
             switch (erro) {
                 case ErroUpload.NAO_FOI_POSSIVEL_GRAVAR:
-                    return res.status(500).json({ mensagem: ErroUpload.NAO_FOI_POSSIVEL_GRAVAR })
+                    quantidadeErroGravacao++
+                    break
                 case ErroUpload.OBJETO_ARQUIVO_INVALIDO:
-                    return res.status(400).json({ mensagem: ErroUpload.OBJETO_ARQUIVO_INVALIDO })
+                    quantidadeErroObjArquivoInvalido++
+                    break
                 default:
-                    return res.status(500).json({ mensagem: 'Erro no servidor' })
+                    quantidadeErroInesperado++
             }
         }
     })
 
     await Promise.all(promises)
 
-    res.json(idsArquivosSalvos)
+    res.json({
+        idsArquivosSalvos,
+        quantidadeErroGravacao,
+        quantidadeErroInesperado,
+        quantidadeErroObjArquivoInvalido
+    })
+
 })
